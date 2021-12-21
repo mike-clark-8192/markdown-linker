@@ -1,7 +1,7 @@
-package org.jetbrains.plugins.template.services
+package com.github.binarybeing.markdownlinker.services
 
 import com.intellij.openapi.project.Project
-import org.jetbrains.plugins.template.MyBundle
+import com.github.binarybeing.markdownlinker.MyBundle
 
 class MyProjectService(project: Project) {
 
