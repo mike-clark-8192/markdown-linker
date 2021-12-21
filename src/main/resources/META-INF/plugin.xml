@@ -10,6 +10,4 @@
     <extensions defaultExtensionNs="org.intellij.markdown">
         <browserPreviewExtensionProvider implementation="com.github.binarybeing.idea.markdown.linker.service.ProcessLinkProvider$Provider"/>
     </extensions>
-
-
 </idea-plugin>

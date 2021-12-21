@@ -1,4 +1,4 @@
-# Markdown-linker
+# markdown-linker
 
 <!-- Plugin description -->
 a plugin for markdown, make md linking can search in idea;
