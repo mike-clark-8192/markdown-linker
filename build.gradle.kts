@@ -1,18 +1,14 @@
 import org.jetbrains.changelog.markdownToHTML
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 fun properties(key: String) = project.findProperty(key).toString()
 
 plugins {
-    // Java support
     id("java")
-    // Kotlin support
-    id("org.jetbrains.kotlin.jvm") version "1.6.0"
-    // Gradle IntelliJ Plugin
-    id("org.jetbrains.intellij") version "1.3.0"
-    // Gradle Changelog Plugin
-    id("org.jetbrains.changelog") version "1.3.1"
-    // Gradle Qodana Plugin
+    id("org.jetbrains.kotlin.jvm") version "2.2.0"
+    id("org.jetbrains.intellij.platform") version "2.7.0"
+    id("org.jetbrains.changelog") version "2.0.0"
     id("org.jetbrains.qodana") version "0.1.13"
 }
 
@@ -22,23 +18,27 @@ version = properties("pluginVersion")
 // Configure project's dependencies
 repositories {
     mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
-// Configure Gradle IntelliJ Plugin - read more: https://github.com/JetBrains/gradle-intellij-plugin
-intellij {
-    pluginName.set(properties("pluginName"))
-    version.set(properties("platformVersion"))
-    type.set(properties("platformType"))
+dependencies {
+    intellijPlatform {
+        val type = providers.gradleProperty("platformType")
+        val version = providers.gradleProperty("platformVersion")
 
-    // Plugin Dependencies. Uses `platformPlugins` property from the gradle.properties file.
-    plugins.set(properties("platformPlugins").split(',').map(String::trim).filter(String::isNotEmpty))
+        create(type, version)
+
+        testFramework(TestFrameworkType.Platform)
+
+        bundledPlugin("com.intellij.java")
+        bundledPlugin("org.intellij.plugins.markdown")
+    }
+
+    testImplementation("junit:junit:4.13.2")
 }
 
-// Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
-changelog {
-    version.set(properties("pluginVersion"))
-    groups.set(emptyList())
-}
 
 // Configure Gradle Qodana Plugin - read more: https://github.com/JetBrains/gradle-qodana-plugin
 qodana {
@@ -46,6 +46,13 @@ qodana {
     reportPath.set(projectDir.resolve("build/reports/inspections").canonicalPath)
     saveReport.set(true)
     showReport.set(System.getenv("QODANA_SHOW_REPORT")?.toBoolean() ?: false)
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+        vendor.set(JvmVendorSpec.ADOPTIUM)
+    }
 }
 
 tasks {
@@ -56,7 +63,9 @@ tasks {
             targetCompatibility = it
         }
         withType<KotlinCompile> {
-            kotlinOptions.jvmTarget = it
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(it))
+            }
         }
     }
 
@@ -65,9 +74,9 @@ tasks {
     }
 
     patchPluginXml {
-        version.set(properties("pluginVersion"))
-        sinceBuild.set(properties("pluginSinceBuild"))
-        untilBuild.set(properties("pluginUntilBuild"))
+        version = properties("pluginVersion")
+        sinceBuild = properties("pluginSinceBuild")
+        untilBuild = properties("pluginUntilBuild")
 
         // Extract the <!-- Plugin description --> section from README.md and provide for the plugin's manifest
         pluginDescription.set(
@@ -85,19 +94,19 @@ tasks {
         // Get the latest available change notes from the changelog file
         changeNotes.set(provider {
             changelog.run {
-                getOrNull(properties("pluginVersion")) ?: getLatest()
-            }.toHTML()
+                renderItem(getOrNull(properties("pluginVersion")) ?: getLatest())
+            }
         })
     }
 
     // Configure UI tests plugin
     // Read more: https://github.com/JetBrains/intellij-ui-test-robot
-    runIdeForUiTests {
-        systemProperty("robot-server.port", "8082")
-        systemProperty("ide.mac.message.dialogs.as.sheets", "false")
-        systemProperty("jb.privacy.policy.text", "<!--999.999-->")
-        systemProperty("jb.consents.confirmation.enabled", "false")
-    }
+    // runIdeForUiTests {
+    //     systemProperty("robot-server.port", "8082")
+    //     systemProperty("ide.mac.message.dialogs.as.sheets", "false")
+    //     systemProperty("jb.privacy.policy.text", "<!--999.999-->")
+    //     systemProperty("jb.consents.confirmation.enabled", "false")
+    // }
 
     signPlugin {
         certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
@@ -111,6 +120,13 @@ tasks {
         // pluginVersion is based on the SemVer (https://semver.org) and supports pre-release labels, like 2.1.7-alpha.3
         // Specify pre-release label to publish the plugin in a custom Release Channel automatically. Read more:
         // https://plugins.jetbrains.com/docs/intellij/deployment.html#specifying-a-release-channel
-        channels.set(listOf(properties("pluginVersion").split('-').getOrElse(1) { "default" }.split('.').first()))
+        channels.set(
+            listOf(
+                properties("pluginVersion")
+                    .split('-')
+                    .getOrNull(1)
+                    ?.split('.')?.firstOrNull() ?: "default"
+            )
+        )
     }
 }
